@@ -1,23 +1,22 @@
-import React, { createContext , useMemo} from 'react'
-import {io} from "socket.io-client"
+import React, { createContext, useContext, useMemo } from "react";
+import { io } from "socket.io-client";
 
-const SocketContext = React.createContext(null);
+const SocketContext = createContext(null);
 
-export const SocketProvider = (props) =>{
+export const SocketProvider = ({ children }) => {
+  const socket = useMemo(() => {
+    const url = process.env.REACT_APP_SOCKET_URL || "http://localhost:8001";
+    return io(url, {
+      autoConnect: true,
+      transports: ["websocket", "polling"],
+    });
+  }, []);
 
-    const socket= useMemo(()=>io({
-        host: 'localhost',
-        port: 8001
+  return (
+    <SocketContext.Provider value={socket}>
+      {children}
+    </SocketContext.Provider>
+  );
+};
 
-    }),[])
-    return(
-        <>
-        <SocketContext.Provider value={socket}>
-
-        {props.children}
-
-        </SocketContext.Provider>
-        </>
-
-    )
-}
+export const useSocket = () => useContext(SocketContext);
