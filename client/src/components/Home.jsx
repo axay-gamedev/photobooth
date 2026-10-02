@@ -176,14 +176,42 @@ const Home = () => {
     setError("");
   };
 
-  const takePhoto = () => {
+  const takePhoto = async () => {
     const localVideo = localVideoRef.current;
     const remoteVideo = remoteVideoRef.current;
 
-    if (!localVideo?.videoWidth || !remoteVideo?.videoWidth) {
-      setError("Wait until both cameras are connected before taking a photo.");
+    if (!localVideo || !remoteVideo) return;
+
+    // WebRTC can report "connected" a moment before the video element
+    // has decoded its first frame. Wait for both video elements to be ready.
+    try {
+      if (!localVideo.videoWidth || !localVideo.videoHeight) {
+        await localVideo.play().catch(() => {});
+      }
+
+      if (!remoteVideo.videoWidth || !remoteVideo.videoHeight) {
+        await remoteVideo.play().catch(() => {});
+      }
+    } catch (err) {
+      console.error("Video playback error:", err);
+    }
+
+    // Give the browser one frame to finish decoding the current streams.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    if (
+      !localVideo.videoWidth ||
+      !localVideo.videoHeight ||
+      !remoteVideo.videoWidth ||
+      !remoteVideo.videoHeight ||
+      localVideo.readyState < 2 ||
+      remoteVideo.readyState < 2
+    ) {
+      setError("The cameras are still starting. Wait a second and try again.");
       return;
     }
+
+    setError("");
 
     const canvas = document.createElement("canvas");
     const width = 1200;
