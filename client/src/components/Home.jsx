@@ -180,38 +180,56 @@ const Home = () => {
     const localVideo = localVideoRef.current;
     const remoteVideo = remoteVideoRef.current;
 
-    if (!localVideo || !remoteVideo) return;
-
-    // WebRTC can report "connected" a moment before the video element
-    // has decoded its first frame. Wait for both video elements to be ready.
-    try {
-      if (!localVideo.videoWidth || !localVideo.videoHeight) {
-        await localVideo.play().catch(() => {});
-      }
-
-      if (!remoteVideo.videoWidth || !remoteVideo.videoHeight) {
-        await remoteVideo.play().catch(() => {});
-      }
-    } catch (err) {
-      console.error("Video playback error:", err);
+    if (!localVideo || !remoteVideo) {
+      setError("Camera preview is not ready yet.");
+      return;
     }
 
-    // Give the browser one frame to finish decoding the current streams.
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    setError("");
+    setStatus("Capturing your photo…");
+
+    // Wait until both video elements have decoded an actual frame.
+    const waitForFrame = (video) =>
+      new Promise((resolve) => {
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          resolve();
+          return;
+        }
+
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          video.removeEventListener("loadeddata", finish);
+          resolve();
+        };
+
+        const timer = setTimeout(finish, 2500);
+        video.addEventListener("loadeddata", finish, { once: true });
+      });
+
+    try {
+      await Promise.all([
+        localVideo.play().catch(() => {}),
+        remoteVideo.play().catch(() => {}),
+        waitForFrame(localVideo),
+        waitForFrame(remoteVideo),
+      ]);
+    } catch (err) {
+      console.error("Photo capture preparation failed:", err);
+    }
 
     if (
       !localVideo.videoWidth ||
       !localVideo.videoHeight ||
       !remoteVideo.videoWidth ||
-      !remoteVideo.videoHeight ||
-      localVideo.readyState < 2 ||
-      remoteVideo.readyState < 2
+      !remoteVideo.videoHeight
     ) {
-      setError("The cameras are still starting. Wait a second and try again.");
+      setStatus("Waiting for both camera frames…");
+      setError("Both camera videos need to be visible before taking the photo.");
       return;
     }
-
-    setError("");
 
     const canvas = document.createElement("canvas");
     const width = 1200;
@@ -220,13 +238,20 @@ const Home = () => {
     canvas.height = height;
 
     const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      setError("Could not create the photo canvas.");
+      return;
+    }
+
     ctx.fillStyle = "#f5efe3";
     ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = "#191715";
-    ctx.fillRect(28, 28, width - 56, height - 120);
+    const gap = 14;
+    const photoW = (width - 56 - gap) / 2;
+    const photoH = height - 148;
 
-    const drawCover = (video, x, y, w, h) => {
+    const drawCover = (video, x, y, w, h, mirror = true) => {
       const sourceRatio = video.videoWidth / video.videoHeight;
       const targetRatio = w / h;
 
@@ -244,18 +269,28 @@ const Home = () => {
       }
 
       ctx.save();
-      ctx.translate(x + w, y);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
+
+      if (mirror) {
+        ctx.translate(x + w, y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
+      } else {
+        ctx.drawImage(video, sx, sy, sw, sh, x, y, w, h);
+      }
+
       ctx.restore();
     };
 
-    const gap = 14;
-    const photoW = (width - 56 - gap) / 2;
-    const photoH = height - 148;
-
-    drawCover(localVideo, 28, 28, photoW, photoH);
-    drawCover(remoteVideo, 28 + photoW + gap, 28, photoW, photoH);
+    // Your camera is mirrored; the partner's camera is shown naturally.
+    drawCover(localVideo, 28, 28, photoW, photoH, true);
+    drawCover(
+      remoteVideo,
+      28 + photoW + gap,
+      28,
+      photoW,
+      photoH,
+      false
+    );
 
     ctx.fillStyle = "#191715";
     ctx.fillRect(0, height - 92, width, 92);
@@ -269,7 +304,20 @@ const Home = () => {
     ctx.textAlign = "right";
     ctx.fillText(new Date().toLocaleDateString(), width - 30, height - 48);
 
-    setPhotoUrl(canvas.toDataURL("image/png"));
+    try {
+      const image = canvas.toDataURL("image/png");
+
+      if (!image || image === "data:,") {
+        throw new Error("Canvas returned an empty image.");
+      }
+
+      setPhotoUrl(image);
+      setStatus("Photo captured! ✨");
+    } catch (err) {
+      console.error("Photo creation failed:", err);
+      setError("Could not create the photo. Check the browser console.");
+      setStatus("Photo capture failed");
+    }
   };
 
   const downloadPhoto = () => {
