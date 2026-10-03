@@ -196,6 +196,8 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(8001, () => {
-  console.log("Photobooth signaling server running on http://localhost:8001");
+const PORT = process.env.PORT || 8001;
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Photobooth signaling server running on port ${PORT}`);
 });
