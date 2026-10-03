@@ -658,18 +658,46 @@ const Home = () => {
     rebuildPhoto(filter, stripMode);
   }, [caption, sticker]);
 
-  // The camera stream can be created before the booth video element mounts.
-  // Re-attach it after React renders the booth so the local video actually receives frames.
+  // Always start/attach the local camera as soon as the booth opens.
+  // This also covers the case where the stream was created before the <video>
+  // element mounted.
+  useEffect(() => {
+    if (!inRoom) return;
+
+    let cancelled = false;
+
+    const attachCamera = async () => {
+      try {
+        const stream = await startCamera();
+        if (cancelled || !localVideoRef.current) return;
+
+        const video = localVideoRef.current;
+        if (video.srcObject !== stream) video.srcObject = stream;
+        await video.play().catch(() => {});
+      } catch (err) {
+        if (!cancelled) {
+          console.error("[Photobooth] Camera start failed:", err);
+          setError("Camera could not start. Check browser camera permission and reload.");
+        }
+      }
+    };
+
+    attachCamera();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inRoom]);
+
+  // Keep the video element attached if React remounts it.
   useEffect(() => {
     if (!inRoom || !localVideoRef.current || !localStreamRef.current) return;
-
     const video = localVideoRef.current;
-    video.srcObject = localStreamRef.current;
-
-    video.play().catch((err) => {
-      console.warn("[Photobooth] Local video autoplay failed:", err);
-    });
-  }, [inRoom]);
+    if (video.srcObject !== localStreamRef.current) {
+      video.srcObject = localStreamRef.current;
+    }
+    video.play().catch(() => {});
+  }, [inRoom, cameraOff]);
 
   useEffect(() => {
     if (!socket) return;
