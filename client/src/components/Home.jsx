@@ -383,6 +383,19 @@ const Home = () => {
     if (sharedRoom) setRoomCode(sharedRoom.toUpperCase());
   }, []);
 
+  // The camera stream can be created before the booth video element mounts.
+  // Re-attach it after React renders the booth so the local video actually receives frames.
+  useEffect(() => {
+    if (!inRoom || !localVideoRef.current || !localStreamRef.current) return;
+
+    const video = localVideoRef.current;
+    video.srcObject = localStreamRef.current;
+
+    video.play().catch((err) => {
+      console.warn("[Photobooth] Local video autoplay failed:", err);
+    });
+  }, [inRoom]);
+
   useEffect(() => {
     if (!socket) return;
 
