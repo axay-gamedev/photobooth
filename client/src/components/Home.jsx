@@ -67,6 +67,8 @@ const Home = () => {
   const roomIdRef = useRef("");
   const captureRunRef = useRef(0);
   const captureTimerRef = useRef(null);
+  const connectedRef = useRef(false);
+  const capturingRef = useRef(false);
 
   const cleanupCall = useCallback(() => {
     peerConnectionRef.current?.close();
@@ -106,6 +108,7 @@ const Home = () => {
         if (remoteVideoRef.current && stream) {
           remoteVideoRef.current.srcObject = stream;
           setPeerPresent(true);
+          connectedRef.current = true;
           setConnected(true);
           setStatus("Connected — you're both in the booth");
         }
@@ -123,12 +126,15 @@ const Home = () => {
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
         if (state === "connected") {
+          connectedRef.current = true;
           setConnected(true);
           setStatus("Connected — say cheese!");
         } else if (state === "disconnected") {
+          connectedRef.current = false;
           setConnected(false);
           setStatus("Connection interrupted");
         } else if (state === "failed") {
+          connectedRef.current = false;
           setConnected(false);
           setStatus("Connection failed — try rejoining");
         }
@@ -418,10 +424,9 @@ const Home = () => {
   };
 
   const runCapture = async (startAt = Date.now()) => {
-    // This handler is registered once with Socket.IO, so don't rely on
-    // React's potentially stale "connected" closure here. The server only
-    // emits capture-start after both people are in the room and ready.
-    if (capturing) return;
+    // Socket.IO callbacks can outlive a React render. Use refs for values
+    // that must be current when the server starts the synchronized capture.
+    if (capturingRef.current) return;
 
     const runId = ++captureRunRef.current;
     const wait = Math.max(0, startAt - Date.now());
@@ -430,8 +435,16 @@ const Home = () => {
         captureTimerRef.current = setTimeout(resolve, wait);
       });
     }
-    if (runId !== captureRunRef.current || !connected) return;
+    if (runId !== captureRunRef.current || !connectedRef.current) {
+      console.warn("[Photobooth] capture-start arrived before cameras were connected", {
+        connected: connectedRef.current,
+        runId,
+      });
+      setStatus("Capture waiting for camera connection…");
+      return;
+    }
 
+    capturingRef.current = true;
     setCapturing(true);
     setShots([]);
     setShotNumber(0);
@@ -467,6 +480,7 @@ const Home = () => {
     if (!localShots.length) {
       setError("Both cameras need to be visible before taking the photo.");
       setStatus("Capture failed");
+      capturingRef.current = false;
       setCapturing(false);
       socket.emit("capture-finished");
       return;
@@ -493,6 +507,7 @@ const Home = () => {
     setMemories(nextMemories);
     localStorage.setItem("photobooth-memories", JSON.stringify(nextMemories));
     setDeveloping(false);
+    capturingRef.current = false;
     setCapturing(false);
     setReady(false);
     setStatus("Memory captured ✨");
@@ -783,6 +798,12 @@ const Home = () => {
       runCapture(startAt);
     };
 
+    const onReadyError = ({ message }) => {
+      setReady(false);
+      setStatus(message || "Waiting for your partner…");
+      console.warn("[Photobooth] ready rejected:", message);
+    };
+
     const onRoomFull = () => {
       cleanupCall();
       setError("This room already has two people.");
@@ -797,6 +818,7 @@ const Home = () => {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
 
       setPeerPresent(false);
+      connectedRef.current = false;
       setConnected(false);
       setStatus("Your partner left — waiting for someone else…");
     };
@@ -809,6 +831,7 @@ const Home = () => {
     socket.on("room-full", onRoomFull);
     socket.on("booth-state", onBoothState);
     socket.on("capture-start", onCaptureStart);
+    socket.on("ready-error", onReadyError);
     socket.on("peer-left", onPeerLeft);
 
     return () => {
@@ -820,6 +843,7 @@ const Home = () => {
       socket.off("room-full", onRoomFull);
       socket.off("booth-state", onBoothState);
       socket.off("capture-start", onCaptureStart);
+      socket.off("ready-error", onReadyError);
       socket.off("peer-left", onPeerLeft);
     };
   }, [socket, createPeerConnection, cleanupCall]);
