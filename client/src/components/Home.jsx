@@ -180,8 +180,19 @@ const Home = () => {
     const localVideo = localVideoRef.current;
     const remoteVideo = remoteVideoRef.current;
 
+    console.log("[Photobooth] Shutter clicked", {
+      localReadyState: localVideo?.readyState,
+      localWidth: localVideo?.videoWidth,
+      localHeight: localVideo?.videoHeight,
+      remoteReadyState: remoteVideo?.readyState,
+      remoteWidth: remoteVideo?.videoWidth,
+      remoteHeight: remoteVideo?.videoHeight,
+      connected,
+    });
+
     if (!localVideo || !remoteVideo) {
       setError("Camera preview is not ready yet.");
+      setStatus("Camera not ready");
       return;
     }
 
@@ -226,6 +237,13 @@ const Home = () => {
       !remoteVideo.videoWidth ||
       !remoteVideo.videoHeight
     ) {
+      console.warn("[Photobooth] Shutter blocked: both camera frames are not ready", {
+        localWidth: localVideo.videoWidth,
+        localHeight: localVideo.videoHeight,
+        remoteWidth: remoteVideo.videoWidth,
+        remoteHeight: remoteVideo.videoHeight,
+        connected,
+      });
       setStatus("Waiting for both camera frames…");
       setError("Both camera videos need to be visible before taking the photo.");
       return;
@@ -633,8 +651,8 @@ const Home = () => {
           <button
             className="shutter"
             onClick={takePhoto}
-            disabled={!connected}
-            title="Take photo"
+            type="button"
+            title={connected ? "Take photo" : "Take photo — waiting for both cameras"}
           >
             <span />
           </button>
