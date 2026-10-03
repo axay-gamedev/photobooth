@@ -2,25 +2,25 @@
 
 A two-person virtual photobooth where friends can join the same room, see each other live, and capture synchronized memories together.
 
-## ✨ Features
+##  Features
 
-- 👥 Private two-person rooms
-- 📹 Real-time video using WebRTC
-- 🔌 Socket.IO signaling and room synchronization
-- ⏱️ Synchronized 3-2-1 countdown
-- 📸 Four-shot photobooth sessions
-- 💥 Camera flash + shutter sound
-- 🎞️ Strip, Polaroid, and single-photo formats
-- 🎨 Original, B&W, Vintage, Warm, and Film filters
-- ❤️ Captions and stickers
-- 🔐 Optional secret message added when saving
-- 🖼️ Local memories gallery
-- 🔄 Mirror camera toggle
-- 🎤 Microphone, camera, speaker, and sound controls
-- 📱 Responsive/mobile-friendly UI
-- ☁️ Deployed frontend + real-time backend
+-  Private two-person rooms
+-  Real-time video using WebRTC
+-  Socket.IO signaling and room synchronization
+-  Synchronized 3-2-1 countdown
+-  Four-shot photobooth sessions
+-  Camera flash + shutter sound
+-  Strip, Polaroid, and single-photo formats
+-  Original, B&W, Vintage, Warm, and Film filters
+-  Captions and stickers
+-  Optional secret message added when saving
+-  Local memories gallery
+-  Mirror camera toggle
+-  Microphone, camera, speaker, and sound controls
+-  Responsive/mobile-friendly UI
+-  Deployed frontend + real-time backend
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 **Frontend**
 - React
@@ -39,7 +39,7 @@ A two-person virtual photobooth where friends can join the same room, see each o
 - Vercel — React frontend
 - Render — Node.js + Socket.IO server
 
-## 🚀 Run Locally
+## Run Locally
 
 ### 1. Clone the repository
 
@@ -86,13 +86,13 @@ To use a different backend:
 REACT_APP_SOCKET_URL=https://your-server-url
 ```
 
-## 🌐 Live Backend
+## Live Backend
 
 The deployed Socket.IO backend is available at:
 
 https://photobooth-zenm.onrender.com/
 
-## 🧠 How It Works
+##  How It Works
 
 1. One person creates a room.
 2. The second person joins using the room code/link.
@@ -113,16 +113,16 @@ photobooth/
 └── server/        # Express + Socket.IO signaling server
 ```
 
-## 🔒 Privacy
+##  Privacy
 
 Photos are generated and stored locally in the browser's `localStorage`. The project does not upload finished photos to a database or photo storage service.
 
 Camera and microphone access is requested by the browser and requires user permission.
 
-## ❤️ Built For
+##  Built For
 
 A small project exploring real-time communication, WebRTC, synchronized interactions, and making something genuinely fun with code.
 
 ---
 
-Built with React, WebRTC, Socket.IO, and way too much debugging. 🍪📸
+Built with React, WebRTC, Socket.IO, and way too much debugging. 
