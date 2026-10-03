@@ -575,15 +575,9 @@ const Home = () => {
 
   const rebuildPhoto = async (nextFilter = filter, nextMode = stripMode) => {
     if (!shots.length) return;
-    const oldFilter = filter;
-    const oldMode = stripMode;
     setFilter(nextFilter);
     setStripMode(nextMode);
     // Build with explicit state values so the preview updates immediately.
-    const originalFilter = filter;
-    const originalMode = stripMode;
-    setFilter(nextFilter);
-    setStripMode(nextMode);
     const images = await Promise.all(shots.map(src => new Promise((resolve) => {
       const img = new Image();
       img.onload = () => resolve(img);
@@ -621,8 +615,6 @@ const Home = () => {
     if (caption.trim()) ctx.fillText(caption.trim().slice(0, 42), width / 2, height - 62);
     ctx.font = "14px Courier New"; ctx.fillText(new Date().toLocaleDateString() + " · " + new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}), width / 2, height - 32);
     setPhotoUrl(canvas.toDataURL("image/jpeg", .94));
-    setFilter(originalFilter === nextFilter ? nextFilter : nextFilter);
-    setStripMode(originalMode === nextMode ? nextMode : nextMode);
   };
 
   const copyRoom = async () => {
@@ -671,6 +663,8 @@ const Home = () => {
     if (!shots.length) return;
     // Re-render the final image when the user edits its caption or sticker.
     rebuildPhoto(filter, stripMode);
+    // rebuildPhoto is intentionally omitted: it is recreated on each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caption, sticker]);
 
   // Always start/attach the local camera as soon as the booth opens.
@@ -702,6 +696,8 @@ const Home = () => {
     return () => {
       cancelled = true;
     };
+    // startCamera is intentionally omitted because it is recreated on each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inRoom]);
 
   // Keep the video element attached if React remounts it.
@@ -846,6 +842,8 @@ const Home = () => {
       socket.off("ready-error", onReadyError);
       socket.off("peer-left", onPeerLeft);
     };
+    // runCapture is intentionally omitted because it is recreated on each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, createPeerConnection, cleanupCall]);
 
   useEffect(() => {
