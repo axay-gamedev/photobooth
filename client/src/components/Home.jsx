@@ -631,6 +631,12 @@ const Home = () => {
     } catch {}
   }, []);
 
+  useEffect(() => {
+    if (!shots.length) return;
+    // Re-render the final image when the user edits its caption or sticker.
+    rebuildPhoto(filter, stripMode);
+  }, [caption, sticker]);
+
   // The camera stream can be created before the booth video element mounts.
   // Re-attach it after React renders the booth so the local video actually receives frames.
   useEffect(() => {
@@ -980,9 +986,13 @@ const Home = () => {
         </div>
 
         <div className="secondary-controls">
+          <button className="text-control" onClick={() => setSoundOn((value) => !value)}>
+            {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            {soundOn ? "Camera sound" : "Silent"}
+          </button>
           <button className="text-control" onClick={toggleSpeaker}>
             {speakerOff ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            {speakerOff ? "Sound off" : "Sound on"}
+            {speakerOff ? "Partner muted" : "Partner sound"}
           </button>
 
           <button className="text-control leave" onClick={leaveRoom}>
