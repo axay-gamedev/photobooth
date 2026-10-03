@@ -486,11 +486,14 @@ const Home = () => {
   };
 
   const takePhoto = () => {
-    if (!connected) {
-      setError("Wait until both cameras are connected.");
+    if (!connected || capturing) {
+      if (!connected) setError("Wait until both cameras are connected.");
       return;
     }
-    runCapture();
+    setError("");
+    setReady(true);
+    socket.emit("set-ready", true);
+    setStatus("You're ready — waiting for your partner…");
   };
 
   const downloadPhoto = () => {
