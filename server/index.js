@@ -85,12 +85,20 @@ io.on("connection", (socket) => {
 
   socket.on("set-ready", (ready) => {
     const roomId = socket.data.roomId;
-    if (!roomId) return;
+    if (!roomId) {
+      console.log("set-ready ignored: socket has no room", socket.id);
+      return;
+    }
 
     const room = io.sockets.adapter.rooms.get(roomId);
-    if (!room || room.size !== 2) return;
+    if (!room || room.size !== 2) {
+      console.log("set-ready ignored: room is not full", roomId, room?.size || 0);
+      socket.emit("ready-error", { message: "Waiting for your partner to join." });
+      return;
+    }
 
     socket.data.ready = Boolean(ready);
+    console.log("READY", roomId, socket.id, socket.data.ready);
     const state = getState(roomId);
 
     if (!socket.data.ready) {
@@ -113,6 +121,8 @@ io.on("connection", (socket) => {
       state.finished.clear();
 
       const startAt = Date.now() + 3600;
+
+      console.log("BOTH READY -> CAPTURE START", roomId, startAt);
 
       io.to(roomId).emit("capture-start", {
         startAt,
