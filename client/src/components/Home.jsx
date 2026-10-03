@@ -418,7 +418,10 @@ const Home = () => {
   };
 
   const runCapture = async (startAt = Date.now()) => {
-    if (capturing || !connected) return;
+    // This handler is registered once with Socket.IO, so don't rely on
+    // React's potentially stale "connected" closure here. The server only
+    // emits capture-start after both people are in the room and ready.
+    if (capturing) return;
 
     const runId = ++captureRunRef.current;
     const wait = Math.max(0, startAt - Date.now());
