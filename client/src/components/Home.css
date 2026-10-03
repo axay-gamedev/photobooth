@@ -519,3 +519,273 @@ button, input { font: inherit; }
   .landing-content h1 { font-size:32px; }
   .polaroid-card { padding:15px 15px 24px; }
 }
+
+
+/* V2 photobooth experience */
+.booth-tools {
+  display:flex;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:18px auto 0;
+}
+.tool-btn {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:36px;
+  padding:7px 11px;
+  border:1px solid #4b4640;
+  border-radius:999px;
+  color:#d6d3d1;
+  background:#211f1c;
+  cursor:pointer;
+  font:700 10px 'Courier Prime',monospace;
+  letter-spacing:.04em;
+}
+.tool-btn:hover { border-color:#fbbf24; color:#fef3c7; }
+.tool-btn.active { color:#171411; background:#fbbf24; border-color:#fbbf24; }
+.tool-btn:disabled { opacity:.45; cursor:not-allowed; }
+
+.ready-status {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  margin-top:10px;
+  color:#78716c;
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.ready-dot {
+  width:7px;
+  height:7px;
+  margin-left:6px;
+  border-radius:50%;
+  background:#57534e;
+}
+.ready-dot.on { background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,.6); }
+
+.capture-overlay {
+  position:absolute;
+  z-index:10;
+  inset:0;
+  display:grid;
+  place-items:center;
+  pointer-events:none;
+  background:rgba(0,0,0,.18);
+}
+.shot-label {
+  position:absolute;
+  top:18px;
+  left:50%;
+  transform:translateX(-50%);
+  padding:7px 12px;
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:999px;
+  background:rgba(0,0,0,.65);
+  color:#fbbf24;
+  font:700 10px 'Courier Prime',monospace;
+  letter-spacing:.12em;
+}
+.countdown-number {
+  font:700 clamp(80px, 16vw, 170px)/1 'Courier Prime',monospace;
+  color:#fff;
+  text-shadow:0 8px 40px rgba(0,0,0,.7);
+  animation:countPop .65s ease both;
+}
+@keyframes countPop {
+  from { transform:scale(1.35); opacity:.1; }
+  to { transform:scale(1); opacity:1; }
+}
+.camera-flash {
+  position:absolute;
+  z-index:30;
+  inset:0;
+  background:#fff;
+  pointer-events:none;
+  animation:flash .18s ease-out both;
+}
+@keyframes flash {
+  0% { opacity:1; }
+  100% { opacity:0; }
+}
+.developing-overlay {
+  position:absolute;
+  z-index:25;
+  inset:0;
+  display:grid;
+  place-items:center;
+  background:rgba(10,8,6,.78);
+  backdrop-filter:blur(5px);
+}
+.developing-card {
+  display:grid;
+  justify-items:center;
+  gap:9px;
+  padding:28px 34px;
+  border:1px solid #4b4640;
+  background:#1b1917;
+  color:#f5efe3;
+  box-shadow:0 20px 60px rgba(0,0,0,.4);
+}
+.developing-card svg { color:#fbbf24; }
+.developing-card strong { font-size:18px; }
+.developing-card span { color:#a8a29e; font-size:10px; }
+
+.editor-card {
+  max-height:92vh;
+  overflow:auto;
+  border-radius:4px;
+}
+.photo-preview {
+  max-height:55vh;
+  object-fit:contain;
+  background:#eee7dc;
+}
+.editor-section {
+  padding:11px 0 0;
+}
+.editor-title {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-bottom:7px;
+  color:#78716c;
+  font:700 9px 'Courier Prime',monospace;
+  letter-spacing:.12em;
+}
+.chip-row {
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  padding-bottom:2px;
+}
+.chip {
+  flex:0 0 auto;
+  padding:7px 9px;
+  border:1px solid #d6d0c5;
+  border-radius:999px;
+  color:#57534e;
+  background:#fffdf8;
+  cursor:pointer;
+  font:700 10px 'Courier Prime',monospace;
+}
+.chip.selected { color:#fffdf8; background:#191715; border-color:#191715; }
+.editor-row {
+  display:flex;
+  gap:7px;
+}
+.caption-input {
+  min-width:0;
+  flex:1;
+  padding:10px 11px;
+  border:1px solid #d6d0c5;
+  border-radius:4px;
+  outline:none;
+  color:#191715;
+  background:#fffdf8;
+  font:12px 'Courier Prime',monospace;
+}
+.caption-input:focus { border-color:#a8a29e; }
+.sticker-btn {
+  width:42px;
+  border:1px solid #d6d0c5;
+  border-radius:4px;
+  background:#fffdf8;
+  cursor:pointer;
+  font-size:18px;
+}
+.secret-toggle {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:0;
+  border:0;
+  color:#78716c;
+  background:transparent;
+  cursor:pointer;
+  font:700 10px 'Courier Prime',monospace;
+}
+.secret-input { margin-top:8px; width:100%; }
+.memories-card {
+  width:min(94vw,900px);
+  max-height:88vh;
+  overflow:auto;
+  padding:18px;
+  border:1px solid #3b3630;
+  border-radius:4px;
+  background:#171513;
+}
+.memories-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  color:#f5efe3;
+  font:700 12px 'Courier Prime',monospace;
+  letter-spacing:.08em;
+}
+.memories-header > div { display:flex; align-items:center; gap:8px; }
+.close-memory {
+  width:32px;
+  height:32px;
+  border:1px solid #4b4640;
+  border-radius:50%;
+  color:#d6d3d1;
+  background:transparent;
+  cursor:pointer;
+  font-size:22px;
+}
+.memory-grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+  margin-top:16px;
+}
+.memory-item {
+  padding:0;
+  border:1px solid #3b3630;
+  border-radius:3px;
+  overflow:hidden;
+  color:#d6d3d1;
+  background:#211f1c;
+  cursor:pointer;
+  text-align:left;
+}
+.memory-item img {
+  display:block;
+  width:100%;
+  aspect-ratio:1/1;
+  object-fit:cover;
+}
+.memory-item span, .memory-item small {
+  display:block;
+  padding:7px 8px 0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.memory-item small {
+  padding-top:2px;
+  padding-bottom:8px;
+  color:#78716c;
+  font-size:8px;
+}
+.empty-memories {
+  min-height:260px;
+  display:grid;
+  place-content:center;
+  justify-items:center;
+  color:#78716c;
+}
+.empty-memories svg { color:#fbbf24; }
+
+@media (max-width:720px) {
+  .camera-stage { min-height:62vh; }
+  .booth-controls { margin-top:18px; }
+  .shutter { width:76px; height:76px; }
+  .memory-grid { grid-template-columns:repeat(2,1fr); }
+  .editor-card { padding:10px; }
+  .photo-preview { max-height:42vh; }
+}
