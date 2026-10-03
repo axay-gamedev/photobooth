@@ -65,6 +65,8 @@ const Home = () => {
   const peerConnectionRef = useRef(null);
   const peerIdRef = useRef(null);
   const roomIdRef = useRef("");
+  const captureRunRef = useRef(0);
+  const captureTimerRef = useRef(null);
 
   const cleanupCall = useCallback(() => {
     peerConnectionRef.current?.close();
@@ -415,8 +417,17 @@ const Home = () => {
     return canvas.toDataURL("image/jpeg", 0.94);
   };
 
-  const runCapture = async () => {
+  const runCapture = async (startAt = Date.now()) => {
     if (capturing || !connected) return;
+
+    const runId = ++captureRunRef.current;
+    const wait = Math.max(0, startAt - Date.now());
+    if (wait > 0) {
+      await new Promise((resolve) => {
+        captureTimerRef.current = setTimeout(resolve, wait);
+      });
+    }
+    if (runId !== captureRunRef.current || !connected) return;
 
     setCapturing(true);
     setShots([]);
@@ -490,7 +501,18 @@ const Home = () => {
       if (!connected) setError("Wait until both cameras are connected.");
       return;
     }
+
     setError("");
+
+    // The shutter is the only "ready" action. Both people can press it
+    // whenever they want; capture starts automatically once both are ready.
+    if (ready) {
+      setReady(false);
+      socket.emit("set-ready", false);
+      setStatus("Ready cancelled — press the shutter when you're ready.");
+      return;
+    }
+
     setReady(true);
     socket.emit("set-ready", true);
     setStatus("You're ready — waiting for your partner…");
@@ -530,10 +552,6 @@ const Home = () => {
     img.src = photoUrl;
   };
 
-  const setMyReady = () => {
-    if (!connected || capturing) return;
-    socket.emit("set-ready", !ready);
-  };
 
   const toggleMirror = () => setMirror((value) => !value);
 
@@ -728,11 +746,10 @@ const Home = () => {
     };
 
     const onCaptureStart = ({ startAt }) => {
-      const delay = Math.max(0, startAt - Date.now());
+      if (capturing) return;
+      setReady(true);
       setStatus("Both ready — get into position!");
-      setTimeout(() => {
-        runCapture();
-      }, delay);
+      runCapture(startAt);
     };
 
     const onRoomFull = () => {
@@ -777,7 +794,12 @@ const Home = () => {
   }, [socket, createPeerConnection, cleanupCall]);
 
   useEffect(() => {
-    return () => cleanupCall();
+    return () => {
+      captureRunRef.current += 1;
+      if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
+      captureTimerRef.current = null;
+      cleanupCall();
+    };
   }, [cleanupCall]);
 
   if (!inRoom) {
@@ -946,10 +968,10 @@ const Home = () => {
         </div>
 
         <div className="booth-tools">
-          <button className={ready ? "tool-btn active" : "tool-btn"} onClick={setMyReady} disabled={capturing}>
+          <div className={ready ? "tool-btn active ready-indicator" : "tool-btn ready-indicator"}>
             {ready ? <Check size={16} /> : <Sparkles size={16} />}
-            {ready ? "READY" : "I'M READY"}
-          </button>
+            {ready ? "YOU'RE READY" : "PRESS SHUTTER TO READY"}
+          </div>
           <button className="tool-btn" onClick={toggleMirror} disabled={capturing}>
             <FlipHorizontal size={16} /> {mirror ? "Mirror" : "Normal"}
           </button>
@@ -960,6 +982,9 @@ const Home = () => {
         <div className="ready-status">
           <span className={ready ? "ready-dot on" : "ready-dot"} /> You
           <span className={partnerReady ? "ready-dot on" : "ready-dot"} /> Partner
+          <span className="ready-copy">
+            {ready && partnerReady ? "Both ready — camera starts automatically" : ready ? "Waiting for partner…" : "Press the shutter when ready"}
+          </span>
         </div>
 
         <div className="booth-controls">
