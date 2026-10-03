@@ -11,6 +11,13 @@ import {
   Users,
   Volume2,
   VolumeX,
+  Heart,
+  Sparkles,
+  Wand2,
+  Images,
+  Send,
+  Check,
+  FlipHorizontal,
 } from "lucide-react";
 import { useSocket } from "../providers/Socket";
 import "./Home.css";
@@ -33,6 +40,24 @@ const Home = () => {
   const [speakerOff, setSpeakerOff] = useState(false);
   const [photoUrl, setPhotoUrl] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [partnerReady, setPartnerReady] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const [shotNumber, setShotNumber] = useState(0);
+  const [capturing, setCapturing] = useState(false);
+  const [stripMode, setStripMode] = useState("strip");
+  const [filter, setFilter] = useState("original");
+  const [caption, setCaption] = useState("");
+  const [secretMessage, setSecretMessage] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+  const [sticker, setSticker] = useState("");
+  const [mirror, setMirror] = useState(true);
+  const [memories, setMemories] = useState([]);
+  const [showMemories, setShowMemories] = useState(false);
+  const [shots, setShots] = useState([]);
+  const [flash, setFlash] = useState(false);
+  const [developing, setDeveloping] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -176,37 +201,38 @@ const Home = () => {
     setError("");
   };
 
-  const takePhoto = async () => {
+  const playShutterSound = () => {
+    if (!soundOn) return;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(180, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(65, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.16);
+    } catch {}
+  };
+
+  const captureFrame = async () => {
     const localVideo = localVideoRef.current;
     const remoteVideo = remoteVideoRef.current;
 
-    console.log("[Photobooth] Shutter clicked", {
-      localReadyState: localVideo?.readyState,
-      localWidth: localVideo?.videoWidth,
-      localHeight: localVideo?.videoHeight,
-      remoteReadyState: remoteVideo?.readyState,
-      remoteWidth: remoteVideo?.videoWidth,
-      remoteHeight: remoteVideo?.videoHeight,
-      connected,
-    });
+    if (!localVideo || !remoteVideo) return null;
 
-    if (!localVideo || !remoteVideo) {
-      setError("Camera preview is not ready yet.");
-      setStatus("Camera not ready");
-      return;
-    }
-
-    setError("");
-    setStatus("Capturing your photo…");
-
-    // Wait until both video elements have decoded an actual frame.
     const waitForFrame = (video) =>
       new Promise((resolve) => {
         if (video.readyState >= 2 && video.videoWidth > 0) {
           resolve();
           return;
         }
-
         let done = false;
         const finish = () => {
           if (done) return;
@@ -215,21 +241,16 @@ const Home = () => {
           video.removeEventListener("loadeddata", finish);
           resolve();
         };
-
         const timer = setTimeout(finish, 2500);
         video.addEventListener("loadeddata", finish, { once: true });
       });
 
-    try {
-      await Promise.all([
-        localVideo.play().catch(() => {}),
-        remoteVideo.play().catch(() => {}),
-        waitForFrame(localVideo),
-        waitForFrame(remoteVideo),
-      ]);
-    } catch (err) {
-      console.error("Photo capture preparation failed:", err);
-    }
+    await Promise.all([
+      localVideo.play().catch(() => {}),
+      remoteVideo.play().catch(() => {}),
+      waitForFrame(localVideo),
+      waitForFrame(remoteVideo),
+    ]);
 
     if (
       !localVideo.videoWidth ||
@@ -237,16 +258,7 @@ const Home = () => {
       !remoteVideo.videoWidth ||
       !remoteVideo.videoHeight
     ) {
-      console.warn("[Photobooth] Shutter blocked: both camera frames are not ready", {
-        localWidth: localVideo.videoWidth,
-        localHeight: localVideo.videoHeight,
-        remoteWidth: remoteVideo.videoWidth,
-        remoteHeight: remoteVideo.videoHeight,
-        connected,
-      });
-      setStatus("Waiting for both camera frames…");
-      setError("Both camera videos need to be visible before taking the photo.");
-      return;
+      return null;
     }
 
     const canvas = document.createElement("canvas");
@@ -254,13 +266,8 @@ const Home = () => {
     const height = 760;
     canvas.width = width;
     canvas.height = height;
-
     const ctx = canvas.getContext("2d");
-
-    if (!ctx) {
-      setError("Could not create the photo canvas.");
-      return;
-    }
+    if (!ctx) return null;
 
     ctx.fillStyle = "#f5efe3";
     ctx.fillRect(0, 0, width, height);
@@ -269,14 +276,10 @@ const Home = () => {
     const photoW = (width - 56 - gap) / 2;
     const photoH = height - 148;
 
-    const drawCover = (video, x, y, w, h, mirror = true) => {
+    const drawCover = (video, x, y, w, h, mirrored) => {
       const sourceRatio = video.videoWidth / video.videoHeight;
       const targetRatio = w / h;
-
-      let sx = 0;
-      let sy = 0;
-      let sw = video.videoWidth;
-      let sh = video.videoHeight;
+      let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight;
 
       if (sourceRatio > targetRatio) {
         sw = video.videoHeight * targetRatio;
@@ -287,64 +290,300 @@ const Home = () => {
       }
 
       ctx.save();
-
-      if (mirror) {
+      if (mirrored) {
         ctx.translate(x + w, y);
         ctx.scale(-1, 1);
         ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
       } else {
         ctx.drawImage(video, sx, sy, sw, sh, x, y, w, h);
       }
-
       ctx.restore();
     };
 
-    // Your camera is mirrored; the partner's camera is shown naturally.
-    drawCover(localVideo, 28, 28, photoW, photoH, true);
-    drawCover(
-      remoteVideo,
-      28 + photoW + gap,
-      28,
-      photoW,
-      photoH,
-      false
-    );
+    drawCover(localVideo, 28, 28, photoW, photoH, mirror);
+
+    if (remoteVideo.videoWidth > 0) {
+      drawCover(remoteVideo, 28 + photoW + gap, 28, photoW, photoH, false);
+    }
 
     ctx.fillStyle = "#191715";
     ctx.fillRect(0, height - 92, width, 92);
-
     ctx.fillStyle = "#f5efe3";
     ctx.font = "bold 28px Courier New";
     ctx.textAlign = "left";
     ctx.fillText("PHOTO-BOOTH", 30, height - 48);
-
     ctx.font = "18px Courier New";
     ctx.textAlign = "right";
     ctx.fillText(new Date().toLocaleDateString(), width - 30, height - 48);
 
-    try {
-      const image = canvas.toDataURL("image/png");
+    return canvas.toDataURL("image/jpeg", 0.92);
+  };
 
-      if (!image || image === "data:,") {
-        throw new Error("Canvas returned an empty image.");
+  const buildFinalPhoto = async (frameShots) => {
+    if (!frameShots.length) return null;
+
+    const images = await Promise.all(
+      frameShots.map(
+        (src) =>
+          new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = src;
+          })
+      )
+    );
+
+    const width = stripMode === "polaroid" ? 920 : 760;
+    const frameH = stripMode === "single" ? 480 : 430;
+    const gap = 18;
+    const header = stripMode === "strip" ? 80 : 120;
+    const footer = 105;
+    const height =
+      header +
+      images.length * frameH +
+      Math.max(0, images.length - 1) * gap +
+      footer +
+      36;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    const filterMap = {
+      original: "none",
+      bw: "grayscale(1) contrast(1.12)",
+      vintage: "sepia(.45) contrast(1.08) saturate(.82)",
+      warm: "sepia(.18) saturate(1.25) brightness(1.04)",
+      film: "contrast(1.16) saturate(.78)",
+    };
+
+    ctx.fillStyle = stripMode === "polaroid" ? "#fffdf8" : "#f5efe3";
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = "#191715";
+    ctx.font = "bold 30px Courier New";
+    ctx.textAlign = "center";
+    ctx.fillText(
+      stripMode === "polaroid" ? "A LITTLE MEMORY" : "PHOTO-BOOTH",
+      width / 2,
+      55
+    );
+
+    let y = header;
+    images.forEach((img) => {
+      ctx.save();
+      ctx.filter = filterMap[filter] || "none";
+      const targetW = width - 72;
+      const targetH = frameH;
+      const sourceRatio = img.width / img.height;
+      const targetRatio = targetW / targetH;
+      let sx = 0, sy = 0, sw = img.width, sh = img.height;
+
+      if (sourceRatio > targetRatio) {
+        sw = img.height * targetRatio;
+        sx = (img.width - sw) / 2;
+      } else {
+        sh = img.width / targetRatio;
+        sy = (img.height - sh) / 2;
+      }
+      ctx.drawImage(img, sx, sy, sw, sh, 36, y, targetW, targetH);
+      ctx.restore();
+      y += frameH + gap;
+    });
+
+    if (sticker) {
+      ctx.font = "52px serif";
+      ctx.textAlign = "right";
+      ctx.fillText(sticker, width - 45, header + 65);
+    }
+
+    ctx.fillStyle = "#191715";
+    ctx.font = "bold 19px Courier New";
+    ctx.textAlign = "center";
+    if (caption.trim()) ctx.fillText(caption.trim().slice(0, 42), width / 2, height - 62);
+
+    ctx.font = "14px Courier New";
+    ctx.fillText(
+      `${new Date().toLocaleDateString()}  ·  ${new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}`,
+      width / 2,
+      height - 32
+    );
+
+    return canvas.toDataURL("image/jpeg", 0.94);
+  };
+
+  const runCapture = async () => {
+    if (capturing || !connected) return;
+
+    setCapturing(true);
+    setShots([]);
+    setShotNumber(0);
+    setStatus("Get ready…");
+
+    const localShots = [];
+
+    for (let i = 0; i < 4; i += 1) {
+      setShotNumber(i + 1);
+
+      for (let n = 3; n >= 1; n -= 1) {
+        setCountdown(n);
+        await new Promise((resolve) => setTimeout(resolve, 700));
       }
 
-      setPhotoUrl(image);
-      setStatus("Photo captured! ✨");
-    } catch (err) {
-      console.error("Photo creation failed:", err);
-      setError("Could not create the photo. Check the browser console.");
-      setStatus("Photo capture failed");
+      setCountdown("📸");
+      setFlash(true);
+      playShutterSound();
+
+      const frame = await captureFrame();
+      if (frame) localShots.push(frame);
+
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      setFlash(false);
+      setCountdown(null);
+
+      if (i < 3) {
+        setStatus(`Shot ${i + 1}/4 captured — pose again!`);
+        await new Promise((resolve) => setTimeout(resolve, 900));
+      }
     }
+
+    if (!localShots.length) {
+      setError("Both cameras need to be visible before taking the photo.");
+      setStatus("Capture failed");
+      setCapturing(false);
+      socket.emit("capture-finished");
+      return;
+    }
+
+    setDeveloping(true);
+    setStatus("Developing your memory…");
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+
+    setShots(localShots);
+    const finalPhoto = await buildFinalPhoto(localShots);
+    setPhotoUrl(finalPhoto);
+
+    const nextMemories = [
+      {
+        id: Date.now(),
+        url: finalPhoto,
+        caption: caption || "A little memory",
+        date: new Date().toLocaleDateString(),
+      },
+      ...memories,
+    ].slice(0, 20);
+
+    setMemories(nextMemories);
+    localStorage.setItem("photobooth-memories", JSON.stringify(nextMemories));
+    setDeveloping(false);
+    setCapturing(false);
+    setReady(false);
+    setStatus("Memory captured ✨");
+    socket.emit("capture-finished");
+  };
+
+  const takePhoto = () => {
+    if (!connected) {
+      setError("Wait until both cameras are connected.");
+      return;
+    }
+    runCapture();
   };
 
   const downloadPhoto = () => {
     if (!photoUrl) return;
 
-    const link = document.createElement("a");
-    link.href = photoUrl;
-    link.download = `photobooth-${Date.now()}.png`;
-    link.click();
+    if (!secretMessage.trim()) {
+      const link = document.createElement("a");
+      link.href = photoUrl;
+      link.download = `photobooth-${Date.now()}.png`;
+      link.click();
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height + 110;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fffdf8";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      ctx.fillStyle = "#191715";
+      ctx.font = "bold 18px Courier New";
+      ctx.textAlign = "center";
+      ctx.fillText("psst… " + secretMessage.trim().slice(0, 72), canvas.width / 2, canvas.height - 52);
+      ctx.font = "12px Courier New";
+      ctx.fillText("a little secret, just for you ♡", canvas.width / 2, canvas.height - 25);
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/jpeg", .95);
+      link.download = `photobooth-${Date.now()}.jpg`;
+      link.click();
+    };
+    img.src = photoUrl;
+  };
+
+  const setMyReady = () => {
+    if (!connected || capturing) return;
+    socket.emit("set-ready", !ready);
+  };
+
+  const toggleMirror = () => setMirror((value) => !value);
+
+  const rebuildPhoto = async (nextFilter = filter, nextMode = stripMode) => {
+    if (!shots.length) return;
+    const oldFilter = filter;
+    const oldMode = stripMode;
+    setFilter(nextFilter);
+    setStripMode(nextMode);
+    // Build with explicit state values so the preview updates immediately.
+    const originalFilter = filter;
+    const originalMode = stripMode;
+    setFilter(nextFilter);
+    setStripMode(nextMode);
+    const images = await Promise.all(shots.map(src => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.src = src;
+    })));
+    const width = nextMode === "polaroid" ? 920 : 760;
+    const frameH = nextMode === "single" ? 480 : 430;
+    const gap = 18;
+    const header = nextMode === "strip" ? 80 : 120;
+    const footer = 105;
+    const height = header + images.length * frameH + Math.max(0, images.length - 1) * gap + footer + 36;
+    const canvas = document.createElement("canvas");
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = nextMode === "polaroid" ? "#fffdf8" : "#f5efe3";
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = "#191715";
+    ctx.font = "bold 30px Courier New";
+    ctx.textAlign = "center";
+    ctx.fillText(nextMode === "polaroid" ? "A LITTLE MEMORY" : "PHOTO-BOOTH", width / 2, 55);
+    const filterMap = {original:"none",bw:"grayscale(1) contrast(1.12)",vintage:"sepia(.45) contrast(1.08) saturate(.82)",warm:"sepia(.18) saturate(1.25) brightness(1.04)",film:"contrast(1.16) saturate(.78)"};
+    let y = header;
+    images.slice(0, nextMode === "single" ? 1 : 4).forEach((img) => {
+      ctx.save(); ctx.filter = filterMap[nextFilter] || "none";
+      const targetW = width - 72, targetH = frameH, sourceRatio = img.width / img.height, targetRatio = targetW / targetH;
+      let sx = 0, sy = 0, sw = img.width, sh = img.height;
+      if (sourceRatio > targetRatio) { sw = img.height * targetRatio; sx = (img.width - sw) / 2; }
+      else { sh = img.width / targetRatio; sy = (img.height - sh) / 2; }
+      ctx.drawImage(img, sx, sy, sw, sh, 36, y, targetW, targetH); ctx.restore();
+      y += frameH + gap;
+    });
+    if (sticker) { ctx.font = "52px serif"; ctx.textAlign = "right"; ctx.fillText(sticker, width - 45, header + 65); }
+    ctx.fillStyle = "#191715"; ctx.font = "bold 19px Courier New"; ctx.textAlign = "center";
+    if (caption.trim()) ctx.fillText(caption.trim().slice(0, 42), width / 2, height - 62);
+    ctx.font = "14px Courier New"; ctx.fillText(new Date().toLocaleDateString() + " · " + new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}), width / 2, height - 32);
+    setPhotoUrl(canvas.toDataURL("image/jpeg", .94));
+    setFilter(originalFilter === nextFilter ? nextFilter : nextFilter);
+    setStripMode(originalMode === nextMode ? nextMode : nextMode);
   };
 
   const copyRoom = async () => {
@@ -381,6 +620,12 @@ const Home = () => {
     const params = new URLSearchParams(window.location.search);
     const sharedRoom = params.get("room");
     if (sharedRoom) setRoomCode(sharedRoom.toUpperCase());
+  }, []);
+
+  useEffect(() => {
+    try {
+      setMemories(JSON.parse(localStorage.getItem("photobooth-memories") || "[]"));
+    } catch {}
   }, []);
 
   // The camera stream can be created before the booth video element mounts.
@@ -466,6 +711,21 @@ const Home = () => {
       }
     };
 
+    const onBoothState = ({ participants }) => {
+      const me = participants.find((p) => p.id === socket.id);
+      const partner = participants.find((p) => p.id !== socket.id);
+      setReady(Boolean(me?.ready));
+      setPartnerReady(Boolean(partner?.ready));
+    };
+
+    const onCaptureStart = ({ startAt }) => {
+      const delay = Math.max(0, startAt - Date.now());
+      setStatus("Both ready — get into position!");
+      setTimeout(() => {
+        runCapture();
+      }, delay);
+    };
+
     const onRoomFull = () => {
       cleanupCall();
       setError("This room already has two people.");
@@ -490,6 +750,8 @@ const Home = () => {
     socket.on("answer", onAnswer);
     socket.on("ice-candidate", onIceCandidate);
     socket.on("room-full", onRoomFull);
+    socket.on("booth-state", onBoothState);
+    socket.on("capture-start", onCaptureStart);
     socket.on("peer-left", onPeerLeft);
 
     return () => {
@@ -499,6 +761,8 @@ const Home = () => {
       socket.off("answer", onAnswer);
       socket.off("ice-candidate", onIceCandidate);
       socket.off("room-full", onRoomFull);
+      socket.off("booth-state", onBoothState);
+      socket.off("capture-start", onCaptureStart);
       socket.off("peer-left", onPeerLeft);
     };
   }, [socket, createPeerConnection, cleanupCall]);
@@ -624,7 +888,7 @@ const Home = () => {
             autoPlay
             muted
             playsInline
-            className={cameraOff ? "video hidden-video" : "video mirrored"}
+            className={cameraOff ? "video hidden-video" : mirror ? "video mirrored" : "video"}
           />
 
           <div className="remote-frame">
@@ -654,6 +918,39 @@ const Home = () => {
               <span>Camera off</span>
             </div>
           )}
+          {countdown !== null && (
+            <div className="capture-overlay">
+              <div className="shot-label">SHOT {shotNumber} / 4</div>
+              <div className="countdown-number">{countdown}</div>
+            </div>
+          )}
+          {flash && <div className="camera-flash" />}
+          {developing && (
+            <div className="developing-overlay">
+              <div className="developing-card">
+                <Heart size={28} fill="currentColor" />
+                <strong>Developing...</strong>
+                <span>Your memory is almost ready</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="booth-tools">
+          <button className={ready ? "tool-btn active" : "tool-btn"} onClick={setMyReady} disabled={capturing}>
+            {ready ? <Check size={16} /> : <Sparkles size={16} />}
+            {ready ? "READY" : "I'M READY"}
+          </button>
+          <button className="tool-btn" onClick={toggleMirror} disabled={capturing}>
+            <FlipHorizontal size={16} /> {mirror ? "Mirror" : "Normal"}
+          </button>
+          <button className="tool-btn" onClick={() => setShowMemories(true)}>
+            <Images size={16} /> Memories
+          </button>
+        </div>
+        <div className="ready-status">
+          <span className={ready ? "ready-dot on" : "ready-dot"} /> You
+          <span className={partnerReady ? "ready-dot on" : "ready-dot"} /> Partner
         </div>
 
         <div className="booth-controls">
@@ -696,29 +993,83 @@ const Home = () => {
 
       {photoUrl && (
         <div className="photo-modal">
-          <div className="photo-card">
-            <button
-              className="close-photo"
-              onClick={() => setPhotoUrl(null)}
-              aria-label="Retake"
-            >
+          <div className="photo-card editor-card">
+            <button className="close-photo" onClick={() => setPhotoUrl(null)} aria-label="Retake">
               <RotateCcw size={18} />
             </button>
+            <img className={`photo-preview ${filter}`} src={photoUrl} alt="Your photobooth memory" />
 
-            <img src={photoUrl} alt="Your photobooth memory" />
+            <div className="editor-section">
+              <div className="editor-title"><Wand2 size={15} /> LOOK</div>
+              <div className="chip-row">
+                {[
+                  ["original","Original"],["bw","B&W"],["vintage","Vintage"],["warm","Warm"],["film","Film"]
+                ].map(([key,label]) => (
+                  <button key={key} className={filter === key ? "chip selected" : "chip"} onClick={() => rebuildPhoto(key, stripMode)}>{label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="editor-section">
+              <div className="editor-title">FORMAT</div>
+              <div className="chip-row">
+                {[
+                  ["strip","4-shot strip"],["polaroid","Polaroid"],["single","Single"]
+                ].map(([key,label]) => (
+                  <button key={key} className={stripMode === key ? "chip selected" : "chip"} onClick={() => rebuildPhoto(filter, key)}>{label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="editor-section editor-row">
+              <input className="caption-input" value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={42} placeholder="Write something..." />
+              <button className="sticker-btn" onClick={() => setSticker(sticker ? "" : "❤️")} title="Sticker">❤️</button>
+              <button className="sticker-btn" onClick={() => setSticker(sticker === "✨" ? "" : "✨")} title="Sparkle">✨</button>
+            </div>
+
+            <div className="editor-section">
+              <button className="secret-toggle" onClick={() => setShowSecret(!showSecret)}>
+                <Send size={14} /> {showSecret ? "Hide secret message" : "Add a secret message"}
+              </button>
+              {showSecret && (
+                <input className="caption-input secret-input" value={secretMessage} onChange={(e) => setSecretMessage(e.target.value)} maxLength={80} placeholder="psst... something only they should read ❤️" />
+              )}
+            </div>
 
             <div className="photo-actions">
-              <button className="secondary-btn" onClick={() => setPhotoUrl(null)}>
-                Retake
-              </button>
+              <button className="secondary-btn" onClick={() => { setPhotoUrl(null); setShots([]); }}>Retake</button>
               <button className="primary-btn" onClick={downloadPhoto}>
-                <Download size={17} />
-                Save photo
+                <Download size={17} /> Save photo
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {showMemories && (
+        <div className="photo-modal" onClick={() => setShowMemories(false)}>
+          <div className="memories-card" onClick={(e) => e.stopPropagation()}>
+            <div className="memories-header">
+              <div><Images size={18} /> <strong>OUR MEMORIES</strong></div>
+              <button className="close-memory" onClick={() => setShowMemories(false)}>×</button>
+            </div>
+            {memories.length ? (
+              <div className="memory-grid">
+                {memories.map((memory) => (
+                  <button key={memory.id} className="memory-item" onClick={() => { setPhotoUrl(memory.url); setShowMemories(false); }}>
+                    <img src={memory.url} alt={memory.caption} />
+                    <span>{memory.caption}</span>
+                    <small>{memory.date}</small>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-memories"><Heart size={32} /><p>Your first memory is waiting.</p></div>
+            )}
+          </div>
+        </div>
+      )}
+
     </main>
   );
 };
