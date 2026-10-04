@@ -2,6 +2,10 @@
 
 A two-person virtual photobooth where friends can join the same room, see each other live, and capture synchronized memories together.
 
+<img width="1896" height="981" alt="image" src="https://github.com/user-attachments/assets/2d60e1e6-2064-4c41-96ea-e7a906cb8c73" />
+
+
+
 ##  Features
 
 -  Private two-person rooms
